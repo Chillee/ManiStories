@@ -1,0 +1,35 @@
+<script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment.min.js"></script>
+<!-- Include Chart.js (make sure it's compatible with the adapter version) -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@^3"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@1.0.2"></script>
+<!-- Include the adapter after Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-moment@^1.0.0"></script>
+<link rel="stylesheet" type="text/css" href="style.css">
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>ManiStories</title>
+</head>
+<body>
+    <h1>ManiStories</h1>
+    <!-- Add your HTML elements here -->
+
+    <div class="time-range-selector">
+        <input type="radio" id="1D" name="timeRange" value="1D">
+        <label for="1D" class="time-range-label">1D</label>
+    
+        <input type="radio" id="1W" name="timeRange" value="1W">
+        <label for="1W" class="time-range-label">1W</label>
+    
+        <input type="radio" id="1M" name="timeRange" value="1M">
+        <label for="1M" class="time-range-label">1M</label>
+    
+        <input type="radio" id="all" name="timeRange" value="all" checked>
+        <label for="all" class="time-range-label">ALL</label>
+    </div>
+    <canvas id="lineChart"></canvas>
+    <script src="app.js"></script>
+</body>
+</html>
