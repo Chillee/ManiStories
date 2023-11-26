@@ -66,20 +66,23 @@ async function visualizeData(allBets) {
     // ... rest of your code to process jsonData ...
     let sortedData = jsonData.map(bet => ({
         x: moment(bet.createdTime), // 'x' is the x-axis (time)
-        y: bet.probAfter * 100 // Convert to percentage for the y-axis
+        y: bet.probBefore * 100 // Convert to percentage for the y-axis
     })).sort((a, b) => a.x - b.x);
     sortedData = await smoothData(sortedData);
     
     // debugger;
     const ctx = document.getElementById('lineChart').getContext('2d');
-    // #d6f0e7
-    const lineChart = new Chart(ctx, {
+
+    if (chartInstance !== null) {
+        chartInstance.destroy();
+    }
+    chartInstance = new Chart(ctx, {
         type: 'line',
         data: {
             datasets: [{
-                label: 'Probability After',
+                label: 'Probability Before',
                 data: sortedData,
-                stepped: 'after', // This enables the stepped line
+                stepped: 'before', // This enables the stepped line
                 fill: true,
                 backgroundColor: '#d6f0e7',
                 borderColor: '#12b981', // Example line color
@@ -111,20 +114,81 @@ async function visualizeData(allBets) {
                     }
                 },
                 annotation: {
-                    annotations: {
-                        myVerticalLine: {
-                            type: 'line',
-                            xMin: '2023-11-19', // Set the date for the line
-                            xMax: '2023-11-19', // Same as xMin for a vertical line
-                            borderColor: 'rgb(99, 99, 132)',
-                            borderWidth: 2,
-                            label: {
-                                content: 'Great things happened',
-                                enabled: true,
-                                position: 'start'
-                            }
+                    annotations: loadAnnotations() // Initialize as an empty array
+                },
+                tooltip: {
+                    enabled: true,
+                    mode: 'index',
+                    intersect: false,
+                    custom: function(tooltipModel) {
+                        // Tooltip Element
+                        let tooltipEl = document.getElementById('chartjs-tooltip');
+    
+                        // Create element on first render
+                        if (!tooltipEl) {
+                            tooltipEl = document.createElement('div');
+                            tooltipEl.id = 'chartjs-tooltip';
+                            tooltipEl.innerHTML = '<table></table>';
+                            document.body.appendChild(tooltipEl);
                         }
-                        // ... Add more annotations as needed
+    
+                        // Hide if no tooltip
+                        if (tooltipModel.opacity === 0) {
+                            tooltipEl.style.opacity = 0;
+                            return;
+                        }
+    
+                        // Set caret Position
+                        tooltipEl.classList.remove('above', 'below', 'no-transform');
+                        if (tooltipModel.yAlign) {
+                            tooltipEl.classList.add(tooltipModel.yAlign);
+                        } else {
+                            tooltipEl.classList.add('no-transform');
+                        }
+    
+                        function getBody(bodyItem) {
+                            return bodyItem.lines;
+                        }
+    
+                        // Set Text
+                        if (tooltipModel.body) {
+                            const titleLines = tooltipModel.title || [];
+                            const bodyLines = tooltipModel.body.map(getBody);
+    
+                            let innerHtml = '<thead>';
+    
+                            titleLines.forEach(function(title) {
+                                innerHtml += '<tr><th>' + title + '</th></tr>';
+                            });
+                            innerHtml += '</thead><tbody>';
+    
+                            bodyLines.forEach(function(body, i) {
+                                const colors = tooltipModel.labelColors[i];
+                                let style = 'background:' + colors.backgroundColor;
+                                style += '; border-color:' + colors.borderColor;
+                                style += '; border-width: 2px';
+                                const span = '<span style="' + style + '"></span>';
+                                innerHtml += '<tr><td>' + span + body + '</td></tr>';
+                            });
+                            innerHtml += '</tbody>';
+    
+                            let tableRoot = tooltipEl.querySelector('table');
+                            tableRoot.innerHTML = innerHtml;
+                        }
+    
+                        // `this` will be the overall tooltip
+                        const position = this._chart.canvas.getBoundingClientRect();
+    
+                        // Display, position, and set styles for font
+                        tooltipEl.style.opacity = 1;
+                        tooltipEl.style.position = 'absolute';
+                        tooltipEl.style.left = position.left + window.pageXOffset + tooltipModel.caretX + 'px';
+                        tooltipEl.style.top = position.top + window.pageYOffset + tooltipModel.caretY + 'px';
+                        tooltipEl.style.fontFamily = tooltipModel._bodyFontFamily;
+                        tooltipEl.style.fontSize = tooltipModel.bodyFontSize + 'px';
+                        tooltipEl.style.fontStyle = tooltipModel._bodyFontStyle;
+                        tooltipEl.style.padding = tooltipModel.yPadding + 'px ' + tooltipModel.xPadding + 'px';
+                        tooltipEl.style.pointerEvents = 'none';
                     }
                 },
             },
@@ -148,8 +212,8 @@ async function visualizeData(allBets) {
             // ... other chart options
         }
     });
-    lineChart.originalData = sortedData;
-    return lineChart;
+    chartInstance.originalData = sortedData;
+    updateAnnotationsList();
 }
 async function adjustChartData(chart, timeRange) {
     chart = await chart;
@@ -177,22 +241,165 @@ async function adjustChartData(chart, timeRange) {
 }
 const url = window.location.href; // Get the current URL of the web page
 
-// Parse the URL to extract the slug
-const urlSegments = new URL(url).pathname.split('/'); // Split the URL by '/'
-let slug;
-if (urlSegments.length > 5 && false) {
-    slug = urlSegments[urlSegments.length - 1]; // Get the last segment of the URL
-} else {
-    // let slug = 
-    // let slug = "will-taylor-swifts-eras-tour-gross";
-    slug = "will-sam-altman-be-the-ceo-of-opena";
-}
+/////////////////////////
+//// Globals (start) ////
+/////////////////////////
+
+let slug = "will-sam-altman-be-the-ceo-of-opena";
+// let slug = "will-the-super-mario-bros-movie-202-c6dfd51afbc9";
+let chartInstance = null;
+
+/////////////////////////
+//// Globals (end) //////
+/////////////////////////
 
 console.log(slug);
 const allBets = getBets(slug);
-let chart = visualizeData(getBets(slug));
+visualizeData(getBets(slug));
+
+document.getElementById('slugForm').addEventListener('submit', function(event) {
+    event.preventDefault(); // Prevent the form from submitting the traditional way
+
+    let slugInput = document.getElementById('slugInput').value;
+    slug = extractSlug(slugInput);
+    console.log(`Switching slug to ${slug}`);
+
+    let allBets = getBets(slug);
+    visualizeData(allBets); // Assuming this function updates the chart
+});
+
+function extractSlug(urlOrSlug) {
+    // Extracts the slug from a URL or returns the slug if it's already in slug format
+    let urlPattern = /https?:\/\/[^\/]+\/[^\/]+\/([^\/#?]+)/i;
+    let match = urlOrSlug.match(urlPattern);
+    return match ? match[1] : urlOrSlug;
+}
+
 document.querySelectorAll('.time-range-selector input').forEach(input => {
     input.addEventListener('change', function() {
-        adjustChartData(chart, this.value);
+        adjustChartData(chartInstance, this.value);
     });
 });
+
+function saveAnnotations() {
+    const annotations = chartInstance.options.plugins.annotation.annotations;
+    localStorage.setItem(`annotations_${slug}`, JSON.stringify(annotations));
+}
+
+function loadAnnotations() {
+    const savedAnnotations = localStorage.getItem(`annotations_${slug}`);
+    return savedAnnotations ? JSON.parse(savedAnnotations) : [];
+}
+
+function addAnnotation(date) {
+    let annotations = chartInstance.options.plugins.annotation.annotations.slice();
+    let annotation = {
+        type: 'line',
+        xMin: date, // Set the date for the line
+        xMax: date, // Same as xMin for a vertical line
+        borderColor: 'rgba(64, 64, 64, 0.8)',
+        borderWidth: 2,
+        label: {
+            content: 'Event ' + annotations.length,
+            enabled: true,
+            position: "start", // Positions label at the start (bottom for a horizontal line, left for a vertical line)
+            yAdjust: 0, // Adjusts the y position of the label
+            backgroundColor: 'rgba(0, 0, 0, 0.85)', // Light grey, semi-transparent background
+            font: {
+                size: 12, // Example font size
+                style: 'normal', // Normal, italic, or oblique
+                family: "sans-serif", // Font family
+                color: 'rgba(0, 0, 0)' // Dark grey font color for text
+            },
+            padding: 4, // Adds padding inside the label box
+            borderRadius: 4, // Optional: if you want rounded corners
+        }
+    };
+
+    annotations.push(annotation);
+    chartInstance.options.plugins.annotation.annotations = annotations;
+
+    chartInstance.update();
+    updateAnnotationsList();
+    saveAnnotations();
+}
+document.getElementById('lineChart').addEventListener('click', function(event) {
+    // Calculate the position on the x-axis from the click event
+    const xValue = getXValueFromEvent(chartInstance, event);
+
+    if (xValue) {
+        addAnnotation(xValue);
+    }
+});
+function getXValueFromEvent(chart, event) {
+    const rect = chart.canvas.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const xScale = chart.scales['x']; // Replace 'x' with your x-axis ID
+
+    // Translate the pixel position to a chart value
+    return xScale.getValueForPixel(x);
+}
+
+function updateAnnotationsList() {
+    const annotations = chartInstance.options.plugins.annotation.annotations;
+    const annotationsList = document.getElementById('annotationsList');
+
+    // Clear the current list
+    annotationsList.innerHTML = '';
+
+    // Add each annotation to the list
+    annotations.forEach((annotation, index) => {
+        const listItem = document.createElement('div');
+        listItem.innerHTML = `
+            <input type="text" value="${annotation.label.content}" onchange="updateAnnotationLabel(${index}, this.value)">
+            <input type="number" value="${yAdjustToPercentage(annotation.label.yAdjust)}" onchange="updateAnnotationYPosition(${index}, this.value)">
+            <button onclick="removeAnnotation(${index})">Delete</button>
+        `;
+        annotationsList.appendChild(listItem);
+    });
+}
+
+function updateAnnotationLabel(index, newLabel) {
+    const annotations = chartInstance.options.plugins.annotation.annotations;
+    annotations[index].label.content = newLabel;
+    chartInstance.update();
+    saveAnnotations();
+}
+
+function yAdjustToPercentage(yAdjust) {
+    let yScale = chartInstance.scales['y'];
+    const pixelPerUnit = yScale.height / 100;
+    let out = Math.round(100 - 100*(yAdjust/yScale.height));
+    return out;
+}
+function percentageToYAdjust(percentage) {
+    let yScale = chartInstance.scales['y'];
+    let out = (100 - percentage)/100 * yScale.height;
+    console.log(out);
+    return out;
+
+}
+function updateAnnotationYPosition(index, newYPercentage) {
+    newYPercentage = Number(newYPercentage); // Convert to a number
+
+    // Retrieve the annotation
+    const annotation = chartInstance.options.plugins.annotation.annotations[index];
+
+    if (annotation.label) {
+        // Adjust relative to the bottom of the chart
+        annotation.label.yAdjust = percentageToYAdjust(newYPercentage);
+    }
+
+    // Refresh the chart
+    chartInstance.update();
+    saveAnnotations(); // Save the changes
+}
+
+function removeAnnotation(index) {
+    const annotations = chartInstance.options.plugins.annotation.annotations.slice();
+    annotations.splice(index, 1); // Remove the annotation
+    chartInstance.options.plugins.annotation.annotations = annotations;
+    updateAnnotationsList(); // Update the list
+    chartInstance.update();
+    saveAnnotations();
+}

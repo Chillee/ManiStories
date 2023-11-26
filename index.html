@@ -16,6 +16,10 @@
     <h1>ManiStories</h1>
     <!-- Add your HTML elements here -->
 
+    <form id="slugForm">
+        <input type="text" id="slugInput" placeholder="Enter market URL here">
+        <button type="submit">Change Market</button>
+    </form>
     <div class="time-range-selector">
         <input type="radio" id="1D" name="timeRange" value="1D">
         <label for="1D" class="time-range-label">1D</label>
@@ -29,6 +33,8 @@
         <input type="radio" id="all" name="timeRange" value="all" checked>
         <label for="all" class="time-range-label">ALL</label>
     </div>
+    <div id="annotationsList"></div>
+    <br>
     <canvas id="lineChart"></canvas>
     <script src="app.js"></script>
 </body>
