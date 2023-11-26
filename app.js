@@ -30,7 +30,11 @@ async function getBets(contractSlug) {
             }
         }
         // Cache the retrieved data in local storage
-        localStorage.setItem(`bets_${contractSlug}`, JSON.stringify(allBets));
+        try {
+            localStorage.setItem(`bets_${contractSlug}`, JSON.stringify(allBets));
+        } catch (error) {
+
+        }
 
         return [allBets, marketData];
     } catch (error) {
@@ -126,6 +130,7 @@ async function visualizeData(marketInfo) {
                         },
                         mode: 'x', // Zooming can be along 'x', 'y', or 'xy' axes
                         onZoomComplete: function({chart}) {
+                            zoomUpdated = true;
                             updateState();
                         },
                     },
@@ -270,8 +275,9 @@ const url = window.location.href; // Get the current URL of the web page
 
 let urlState = parseUrlForState();
 let slug;
-if ('slug' in urlState) {
-    slug = urlState['slug'];
+console.log(urlState);
+if ('market' in urlState) {
+    slug = urlState['market'];
 } else {
     slug = "will-oppenheimer-and-barbie-perform";
 }
@@ -292,6 +298,7 @@ document.getElementById('slugForm').addEventListener('submit', function(event) {
     console.log(`Switching slug to ${slug}`);
 
     visualizeData(getBets(slug)); // Assuming this function updates the chart
+    const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname + `?market=${serializeSlug(slug)}` 
 });
 
 function extractSlug(urlOrSlug) {
@@ -304,6 +311,7 @@ function extractSlug(urlOrSlug) {
 document.querySelectorAll('.time-range-selector input').forEach(input => {
     input.addEventListener('change', function() {
         adjustChartData(chartInstance, this.value);
+        updateState();
     });
 });
 
@@ -388,8 +396,8 @@ function parseUrlForState() {
     if (urlSearchParams.has('annotations')) {
         urlState['annotations'] = urlSearchParams.get('annotations');
     }
-    if (urlSearchParams.has('slug')) {
-        urlState['slug'] = urlSearchParams.get('slug');
+    if (urlSearchParams.has('market')) {
+        urlState['market'] = urlSearchParams.get('market');
     }
     if (urlSearchParams.has('zoom')) {
         urlState['zoom'] = urlSearchParams.get('zoom');
@@ -398,9 +406,16 @@ function parseUrlForState() {
     return urlState;
 }
 
+let zoomUpdated = false;
 function updateState() {
     const annotations = chartInstance.options.plugins.annotation.annotations;
-    const serializedState = `annotations=${serializeAnnotations(annotations)}&market=${serializeSlug(slug)}&zoom=${serializeZoom(chartInstance)}`;
+    let serializedState = `market=${serializeSlug(slug)}`;
+    if (annotations.length > 0) {
+        serializedState += `&annotations=${serializeAnnotations(annotations)}`;
+    }
+    if (zoomUpdated) {
+        serializedState += `&zoom=${serializeZoom(chartInstance)}`;
+    }
     const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname + '?' + serializedState;
     
     // Update URL without reloading the page
@@ -579,13 +594,16 @@ function loadZoom(chart) {
     let urlState = parseUrlForState();
     let zoomLevel;
     if ('zoom' in urlState) {
+        console.log("load zoom from url")
         zoomLevel = deserializeZoom(urlState['zoom']);
     } else {
-        zoomLevel = JSON.parse(localStorage.getItem(`zoom_${slug}`));
+        console.log("load zoom from storage")
+        zoomLevel = deserializeZoom(localStorage.getItem(`zoom_${slug}`));
     }
     // Retrieve the cached zoom level from localStorage
 
     if (zoomLevel) {
+        zoomUpdated = true;
         const xAxis = chart.options.scales['x']; // Use your actual x-axis ID
         const yAxis = chart.options.scales['y']; // Use your actual y-axis ID
 
