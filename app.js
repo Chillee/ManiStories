@@ -224,6 +224,11 @@ async function visualizeData(marketInfo) {
                     min: 0,
                     max: 100,
                     // ... y scale configuration
+                    ticks: {
+                        callback: function(value) {
+                            return value + '%';
+                        }
+                    }
                 }
             },
             // ... other chart options
