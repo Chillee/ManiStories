@@ -1,3 +1,40 @@
+body {
+    font-family: Arial, sans-serif;
+    margin: 20px;
+}
+
+h1 {
+    color: #333;
+    text-align: center;
+}
+
+#slugForm {
+    display: flex;
+    margin-bottom: 20px;
+}
+
+#slugInput {
+    flex-grow: 1;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    margin-right: 5px;
+}
+
+#slugForm button {
+    padding: 10px 20px;
+    border: none;
+    background-color: #7f8cfd;
+    color: white;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+#slugForm button:hover {
+    background-color: #5a6eda;
+}
+
 .time-range-selector {
     font-family: Arial, sans-serif;
     border: 1px solid #ccc;
@@ -27,9 +64,62 @@
 .time-range-selector label:hover {
     background-color: #ddd;
 }
+
+.annotations-headings {
+    display: flex;
+    justify-content: space-between;
+    padding: 10px 0;
+    font-weight: bold;
+}
+
+.annotation-item {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 10px;
+}
+
+#annotationsList > div {
+    background: #f8f8f8;
+    border: 1px solid #ccc;
+    padding: 10px;
+    border-radius: 4px;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+}
+
+#annotationsList input,
+#annotationsList button {
+    margin-right: 10px;
+    padding: 5px 10px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    flex: 1; /* Equal width for inputs */
+}
+
+#annotationsList button {
+    flex: none; /* Do not stretch the button */
+    background-color: #dc3545;
+    color: white;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+#annotationsList button:hover {
+    background-color: #c82333;
+}
+
+
+input[type="datetime-local"] {
+    max-width: 250px; /* Prevent the datetime input from stretching too much */
+}
+input[type="number"] {
+    max-width: 80; /* Prevent the datetime input from stretching too much */
+}
+
 .unselectable {
     user-select: none;
     -moz-user-select: none; /* Firefox */
     -webkit-user-select: none; /* Safari and Chrome */
     -ms-user-select: none; /* Internet Explorer/Edge */
-  }
+}

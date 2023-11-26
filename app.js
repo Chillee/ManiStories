@@ -95,19 +95,19 @@ async function visualizeData(marketInfo) {
             }]
         },
         options: {
-            title: {
-                display: true,
-                text: marketMeta.title,
-                font: {
-                    size: 18
-                },
-                padding: {
-                    top: 10,
-                    bottom: 30
-                }
-                // You can add more styling properties if needed
-            },
             plugins: {
+                title: {
+                    display: true,
+                    text: marketMeta.question,
+                    font: {
+                        size: 18
+                    },
+                    padding: {
+                        top: 10,
+                        bottom: 30
+                    }
+                    // You can add more styling properties if needed
+                },
                 legend: {
                     display: false // This will hide the legend
                 },
@@ -336,15 +336,16 @@ function serializeAnnotations(annotations) {
     for (let idx=0; idx < annotations.length; idx+=2) {
         let lineAnnotation = annotations[idx];
         let textAnnotation = annotations[idx+1];
-        annotationInfo.push([lineAnnotation.xMin, textAnnotation.yValue, textAnnotation.content]);
+        annotationInfo.push([lineAnnotation.xMin, textAnnotation.yValue, textAnnotation.content, textAnnotation.source]);
     }
+    console.log(annotationInfo);
     return encodeBase64ForURL(JSON.stringify(annotationInfo));
 }
 function deserializeAnnotations(annotationInfo) {
     let parsedAnnotations = JSON.parse(decodeBase64ForURL(annotationInfo));
     let annotations = [];
     for (let idx=0; idx < parsedAnnotations.length; idx++) {
-        let [a, b] = getAnnotations(parsedAnnotations[idx][0], parsedAnnotations[idx][1], parsedAnnotations[idx][2]);
+        let [a, b] = getAnnotations(parsedAnnotations[idx][0], parsedAnnotations[idx][1], parsedAnnotations[idx][2], parsedAnnotations[idx][3]);
         annotations.push(a)
         annotations.push(b)
     }
@@ -397,7 +398,7 @@ function loadAnnotations() {
 }
 
 
-function getAnnotations(date, yValue, content) {
+function getAnnotations(date, yValue, content, source) {
     let lineAnnotation = {
         type: 'line',
         xMin: date,
@@ -425,6 +426,7 @@ function getAnnotations(date, yValue, content) {
         padding: 6,
         borderRadius: 3,
         z: 1,
+        source: source,
         // More properties as needed
     };
     return [lineAnnotation, textAnnotation];
@@ -432,7 +434,7 @@ function getAnnotations(date, yValue, content) {
 
 function addAnnotation(date) {
     let annotations = chartInstance.options.plugins.annotation.annotations.slice();
-    let [lineAnnotation, textAnnotation] = getAnnotations(date, 100, 'Event ' + annotations.length/2);
+    let [lineAnnotation, textAnnotation] = getAnnotations(date, 100, 'Event ' + annotations.length/2, "");
 
     annotations.push(lineAnnotation);
     annotations.push(textAnnotation);
@@ -483,14 +485,16 @@ function updateAnnotationsList() {
     annotationsList.innerHTML = '';
 
     // Add each annotation to the list
+    
     for (let idx=0; idx<annotations.length; idx+=2) {
         let annotation = annotations[idx+1];
         const listItem = document.createElement('div');
         listItem.innerHTML = `
-            <input type="text" value="${annotation.content}" onchange="updateAnnotationLabel(${idx+1}, this.value)">
-            <input type="number" value="${annotation.yValue}" onchange="updateAnnotationYPosition(${idx + 1}, this.value)">
-            <input type="datetime-local" value="${formatDateTimeForInput(annotation.xValue)}" onchange="updateAnnotationXPosition(${idx}, this.value)">
-            <button onclick="removeAnnotation(${idx})">Delete</button>
+            <input type="text" class="annotationContent" value="${annotation.content}" onchange="updateAnnotationLabel(${idx+1}, this.value)">
+            <input type="text" class="annotationSource" value="${annotation.source}" onchange="updateAnnotationSource(${idx+1}, this.value)">
+            <input type="number" class="annotationYValue" value="${annotation.yValue}" onchange="updateAnnotationYPosition(${idx + 1}, this.value)">
+            <input type="datetime-local" class="annotationDate" value="${formatDateTimeForInput(annotation.xValue)}" onchange="updateAnnotationXPosition(${idx}, this.value)">
+            <button class="annotationDelete" onclick="removeAnnotation(${idx})">Delete</button>
         `;
         annotationsList.appendChild(listItem);
     };
@@ -499,6 +503,12 @@ function updateAnnotationsList() {
 function updateAnnotationLabel(index, newLabel) {
     const annotations = chartInstance.options.plugins.annotation.annotations;
     annotations[index].content = newLabel;
+    chartInstance.update();
+    updateState();
+}
+function updateAnnotationSource(index, source) {
+    const annotations = chartInstance.options.plugins.annotation.annotations;
+    annotations[index].source = source;
     chartInstance.update();
     updateState();
 }
