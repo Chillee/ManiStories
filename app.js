@@ -126,7 +126,7 @@ async function visualizeData(marketInfo) {
                         },
                         mode: 'x', // Zooming can be along 'x', 'y', or 'xy' axes
                         onZoomComplete: function({chart}) {
-                            cacheZoomLevel(chart);
+                            updateState();
                         },
                     },
                 },
@@ -231,7 +231,7 @@ async function visualizeData(marketInfo) {
     });
     chartInstance.originalData = sortedData;
     updateAnnotationsList();
-    applyCachedZoomLevel(chartInstance);
+    loadZoom(chartInstance);
 }
 async function adjustChartData(chart, timeRange) {
     chart = await chart;
@@ -358,6 +358,22 @@ function serializeSlug(slug) {
 function deserializeSlug(slug) {
     return decodeURIComponent(slug);
 }
+function serializeZoom(chart) {
+    const xAxis = chart.scales['x']; // Use your actual x-axis ID
+    const yAxis = chart.scales['y']; // Use your actual y-axis ID
+
+    // Create an object to store the zoom level
+    const zoomLevel = {
+        xMin: xAxis.min,
+        xMax: xAxis.max,
+        yMin: yAxis.min,
+        yMax: yAxis.max
+    };
+    return encodeURIComponent(JSON.stringify(zoomLevel));
+}
+function deserializeZoom(zoomString) {
+    return JSON.parse(decodeURIComponent(zoomString));
+}
 
 
 function parseUrlForState() {
@@ -370,18 +386,22 @@ function parseUrlForState() {
     if (urlSearchParams.has('slug')) {
         urlState['slug'] = urlSearchParams.get('slug');
     }
+    if (urlSearchParams.has('zoom')) {
+        urlState['zoom'] = urlSearchParams.get('zoom');
+    }
     // Use these values to reconstruct your chart state
     return urlState;
 }
 
 function updateState() {
     const annotations = chartInstance.options.plugins.annotation.annotations;
-    const serializedState = `annotations=${serializeAnnotations(annotations)}&market=${serializeSlug(slug)}`;
+    const serializedState = `annotations=${serializeAnnotations(annotations)}&market=${serializeSlug(slug)}&zoom=${serializeZoom(chartInstance)}`;
     const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname + '?' + serializedState;
     
     // Update URL without reloading the page
     window.history.pushState({path: newUrl}, '', newUrl);
     localStorage.setItem(`annotations_${slug}`, serializeAnnotations(annotations));
+    localStorage.setItem(`zoom_${slug}`, serializeZoom(chartInstance));
 }
 
 function loadAnnotations() {
@@ -490,12 +510,13 @@ function updateAnnotationsList() {
         let annotation = annotations[idx+1];
         const listItem = document.createElement('div');
         listItem.innerHTML = `
-            <input type="text" class="annotationContent" value="${annotation.content}" onchange="updateAnnotationLabel(${idx+1}, this.value)">
+            <input type="text" class="annotationContent" onchange="updateAnnotationLabel(${idx+1}, this.value)">
             <input type="text" class="annotationSource" value="${annotation.source}" onchange="updateAnnotationSource(${idx+1}, this.value)">
             <input type="number" class="annotationYValue" value="${annotation.yValue}" onchange="updateAnnotationYPosition(${idx + 1}, this.value)">
             <input type="datetime-local" class="annotationDate" value="${formatDateTimeForInput(annotation.xValue)}" onchange="updateAnnotationXPosition(${idx}, this.value)">
             <button class="annotationDelete" onclick="removeAnnotation(${idx})">Delete</button>
         `;
+        listItem.querySelector('.annotationContent').value = annotation.content;
         annotationsList.appendChild(listItem);
     };
 }
@@ -548,26 +569,16 @@ function removeAnnotation(index) {
     updateState();
 }
 
-function cacheZoomLevel(chart) {
-    // Get the current axis scale limits
-    const xAxis = chart.scales['x']; // Use your actual x-axis ID
-    const yAxis = chart.scales['y']; // Use your actual y-axis ID
 
-    // Create an object to store the zoom level
-    const zoomLevel = {
-        xMin: xAxis.min,
-        xMax: xAxis.max,
-        yMin: yAxis.min,
-        yMax: yAxis.max
-    };
-
-    // Cache the zoom level in localStorage
-    localStorage.setItem(`zoom_${slug}`, JSON.stringify(zoomLevel));
-}
-
-function applyCachedZoomLevel(chart) {
+function loadZoom(chart) {
+    let urlState = parseUrlForState();
+    let zoomLevel;
+    if ('zoom' in urlState) {
+        zoomLevel = deserializeZoom(urlState['zoom']);
+    } else {
+        zoomLevel = JSON.parse(localStorage.getItem(`zoom_${slug}`));
+    }
     // Retrieve the cached zoom level from localStorage
-    const zoomLevel = JSON.parse(localStorage.getItem(`zoom_${slug}`));
 
     if (zoomLevel) {
         const xAxis = chart.options.scales['x']; // Use your actual x-axis ID
