@@ -1,8 +1,10 @@
 async function getBets(contractSlug) {
+    let marketURL = await fetch(`https://manifold.markets/api/v0/slug/${contractSlug}`);
+    let marketData = await marketURL.json();
     // First, check if we have cached data in local storage
     const cachedBets = localStorage.getItem(`bets_${contractSlug}`);
     if (cachedBets) {
-        return JSON.parse(cachedBets);
+        return [JSON.parse(cachedBets), marketData];
     }
 
     const allBets = [];
@@ -30,7 +32,7 @@ async function getBets(contractSlug) {
         // Cache the retrieved data in local storage
         localStorage.setItem(`bets_${contractSlug}`, JSON.stringify(allBets));
 
-        return allBets;
+        return [allBets, marketData];
     } catch (error) {
         console.error('Error:', error);
     }
@@ -60,8 +62,8 @@ async function smoothData(data) {
 
     return smoothedData;
 }
-async function visualizeData(allBets) {
-    const jsonData = await allBets;
+async function visualizeData(marketInfo) {
+    const [jsonData, marketMeta] = await marketInfo;
     // Parse the dates and sort the data by createdTime
     // ... rest of your code to process jsonData ...
     let sortedData = jsonData.map(bet => ({
@@ -70,6 +72,7 @@ async function visualizeData(allBets) {
     })).sort((a, b) => a.x - b.x);
     sortedData = await smoothData(sortedData);
     
+    document.getElementById('slugInput').value = marketMeta.url;
     const ctx = document.getElementById('lineChart').getContext('2d');
 
     if (chartInstance !== null) {
@@ -92,6 +95,18 @@ async function visualizeData(allBets) {
             }]
         },
         options: {
+            title: {
+                display: true,
+                text: marketMeta.title,
+                font: {
+                    size: 18
+                },
+                padding: {
+                    top: 10,
+                    bottom: 30
+                }
+                // You can add more styling properties if needed
+            },
             plugins: {
                 legend: {
                     display: false // This will hide the legend
@@ -262,8 +277,6 @@ let chartInstance = null;
 //// Globals (end) //////
 /////////////////////////
 
-console.log(slug);
-const allBets = getBets(slug);
 visualizeData(getBets(slug));
 
 document.getElementById('slugForm').addEventListener('submit', function(event) {
@@ -273,8 +286,7 @@ document.getElementById('slugForm').addEventListener('submit', function(event) {
     slug = extractSlug(slugInput);
     console.log(`Switching slug to ${slug}`);
 
-    let allBets = getBets(slug);
-    visualizeData(allBets); // Assuming this function updates the chart
+    visualizeData(getBets(slug)); // Assuming this function updates the chart
 });
 
 function extractSlug(urlOrSlug) {
@@ -300,7 +312,6 @@ function encodeBase64ForURL(str) {
 }
 
 function decodeBase64ForURL(base64Str) {
-    console.log(base64Str);
     // Reverse the URL-safe encoding by replacing '-' with '+' and '_' with '/'
     let regularBase64Str = base64Str.replace(/-/g, '+').replace(/_/g, '/');
     
@@ -347,8 +358,6 @@ function deserializeSlug(slug) {
     return decodeURIComponent(slug);
 }
 
-function updateURLWithState() {
-}
 
 function parseUrlForState() {
     const urlSearchParams = new URLSearchParams(window.location.search);
@@ -410,7 +419,7 @@ function getAnnotations(date, yValue, content) {
         yPercent: 0,
         color: 'rgba(240, 240, 240, 1)',
         font: {
-            size: 18,
+            size: 14,
             family: "sans-serif",
         },
         padding: 6,
@@ -452,6 +461,20 @@ function getXValueFromEvent(chart, event) {
     return xScale.getValueForPixel(x);
 }
 
+function formatDateTimeForInput(unixTimestamp) {
+    // Create a new Date object from the Unix timestamp
+    // Note: Unix timestamp should be in milliseconds for JavaScript Date object
+    const date = new Date(unixTimestamp);
+    
+    // Convert to local date and time format expected by datetime-local
+    const year = date.getFullYear();
+    const month = (date.getMonth() + 1).toString().padStart(2, '0'); // Months are 0-indexed
+    const day = date.getDate().toString().padStart(2, '0');
+    const hours = date.getHours().toString().padStart(2, '0');
+    const minutes = date.getMinutes().toString().padStart(2, '0');
+    
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
 function updateAnnotationsList() {
     const annotations = chartInstance.options.plugins.annotation.annotations;
     const annotationsList = document.getElementById('annotationsList');
@@ -466,6 +489,7 @@ function updateAnnotationsList() {
         listItem.innerHTML = `
             <input type="text" value="${annotation.content}" onchange="updateAnnotationLabel(${idx+1}, this.value)">
             <input type="number" value="${annotation.yValue}" onchange="updateAnnotationYPosition(${idx + 1}, this.value)">
+            <input type="datetime-local" value="${formatDateTimeForInput(annotation.xValue)}" onchange="updateAnnotationXPosition(${idx}, this.value)">
             <button onclick="removeAnnotation(${idx})">Delete</button>
         `;
         annotationsList.appendChild(listItem);
@@ -487,6 +511,18 @@ function updateAnnotationYPosition(index, newYPercentage) {
 
     annotation.yValue = newYPercentage;
 
+    // Refresh the chart
+    chartInstance.update();
+    updateState(); // Save the changes
+}
+function updateAnnotationXPosition(index, newTime) {
+    let time = new Date(newTime);
+    // Retrieve the annotation
+    let annotations = chartInstance.options.plugins.annotation.annotations.slice();
+    annotations[index].xMin = time.getTime();
+    annotations[index].xMax = time.getTime();
+    annotations[index + 1].xValue = time.getTime();
+    chartInstance.options.plugins.annotation.annotations = annotations;
     // Refresh the chart
     chartInstance.update();
     updateState(); // Save the changes
