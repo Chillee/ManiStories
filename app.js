@@ -70,7 +70,6 @@ async function visualizeData(allBets) {
     })).sort((a, b) => a.x - b.x);
     sortedData = await smoothData(sortedData);
     
-    // debugger;
     const ctx = document.getElementById('lineChart').getContext('2d');
 
     if (chartInstance !== null) {
@@ -110,8 +109,11 @@ async function visualizeData(allBets) {
                         pinch: {
                             enabled: true, // Enable zooming with pinch gestures on touch devices
                         },
-                        mode: 'x' // Zooming can be along 'x', 'y', or 'xy' axes
-                    }
+                        mode: 'x', // Zooming can be along 'x', 'y', or 'xy' axes
+                        onZoomComplete: function({chart}) {
+                            cacheZoomLevel(chart);
+                        },
+                    },
                 },
                 annotation: {
                     annotations: loadAnnotations() // Initialize as an empty array
@@ -214,6 +216,7 @@ async function visualizeData(allBets) {
     });
     chartInstance.originalData = sortedData;
     updateAnnotationsList();
+    applyCachedZoomLevel(chartInstance);
 }
 async function adjustChartData(chart, timeRange) {
     chart = await chart;
@@ -245,7 +248,13 @@ const url = window.location.href; // Get the current URL of the web page
 //// Globals (start) ////
 /////////////////////////
 
-let slug = "will-sam-altman-be-the-ceo-of-opena";
+let urlState = parseUrlForState();
+let slug;
+if ('slug' in urlState) {
+    slug = urlState['slug'];
+} else {
+    slug = "will-sam-altman-be-the-ceo-of-opena";
+}
 // let slug = "will-the-super-mario-bros-movie-202-c6dfd51afbc9";
 let chartInstance = null;
 
@@ -281,49 +290,152 @@ document.querySelectorAll('.time-range-selector input').forEach(input => {
     });
 });
 
-function saveAnnotations() {
+
+function encodeBase64ForURL(str) {
+    // First, encode the string to UTF-8 and then to Base64
+    const base64Str = btoa(unescape(encodeURIComponent(str)));
+    
+    // Make the Base64 string URL-safe by replacing '+' with '-', '/' with '_' and removing '='
+    return base64Str.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function decodeBase64ForURL(base64Str) {
+    console.log(base64Str);
+    // Reverse the URL-safe encoding by replacing '-' with '+' and '_' with '/'
+    let regularBase64Str = base64Str.replace(/-/g, '+').replace(/_/g, '/');
+    
+    // Pad the Base64 string with '=' to make it a multiple of 4
+    while (regularBase64Str.length % 4) {
+        regularBase64Str += '=';
+    }
+
+    // Decode from Base64 and then from UTF-8
+    try {
+        return decodeURIComponent(escape(atob(regularBase64Str)));
+    } catch (e) {
+        console.error("Error in decoding base64 string: ", e);
+        return null;
+    }
+}
+
+function serializeAnnotations(annotations) {
+    // Serialize your annotations and market choice
+    // Note: Ensure that the serialization format is URL-safe
+    let annotationInfo = [];
+    for (let idx=0; idx < annotations.length; idx+=2) {
+        let lineAnnotation = annotations[idx];
+        let textAnnotation = annotations[idx+1];
+        annotationInfo.push([lineAnnotation.xMin, textAnnotation.yValue, textAnnotation.content]);
+    }
+    return encodeBase64ForURL(JSON.stringify(annotationInfo));
+}
+function deserializeAnnotations(annotationInfo) {
+    let parsedAnnotations = JSON.parse(decodeBase64ForURL(annotationInfo));
+    let annotations = [];
+    for (let idx=0; idx < parsedAnnotations.length; idx++) {
+        let [a, b] = getAnnotations(parsedAnnotations[idx][0], parsedAnnotations[idx][1], parsedAnnotations[idx][2]);
+        annotations.push(a)
+        annotations.push(b)
+    }
+    return annotations;
+}
+
+function serializeSlug(slug) {
+    return encodeURIComponent(slug);
+}
+function deserializeSlug(slug) {
+    return decodeURIComponent(slug);
+}
+
+function updateURLWithState() {
+}
+
+function parseUrlForState() {
+    const urlSearchParams = new URLSearchParams(window.location.search);
+
+    let urlState = {};
+    if (urlSearchParams.has('annotations')) {
+        urlState['annotations'] = urlSearchParams.get('annotations');
+    }
+    if (urlSearchParams.has('slug')) {
+        urlState['slug'] = urlSearchParams.get('slug');
+    }
+    // Use these values to reconstruct your chart state
+    return urlState;
+}
+
+function updateState() {
     const annotations = chartInstance.options.plugins.annotation.annotations;
-    localStorage.setItem(`annotations_${slug}`, JSON.stringify(annotations));
+    const serializedState = `annotations=${serializeAnnotations(annotations)}&market=${serializeSlug(slug)}`;
+    const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname + '?' + serializedState;
+    
+    // Update URL without reloading the page
+    window.history.pushState({path: newUrl}, '', newUrl);
+    localStorage.setItem(`annotations_${slug}`, serializeAnnotations(annotations));
 }
 
 function loadAnnotations() {
+    let urlState = parseUrlForState();
+    if ('annotations' in urlState) {
+        return deserializeAnnotations(urlState['annotations']);
+    }
     const savedAnnotations = localStorage.getItem(`annotations_${slug}`);
-    return savedAnnotations ? JSON.parse(savedAnnotations) : [];
+    if (savedAnnotations) {
+        return deserializeAnnotations(savedAnnotations);
+
+    }
+    return [];
+}
+
+
+function getAnnotations(date, yValue, content) {
+    let lineAnnotation = {
+        type: 'line',
+        xMin: date,
+        xMax: date,
+        borderColor: 'rgba(50, 50, 50, 0.9)',
+        borderWidth: 2,
+        label: {
+            enabled: false // Disable the default label for the line
+        },
+        z: 0
+    };
+    let textAnnotation = {
+        type: 'label',
+        xValue: date, // Set the date for the line
+        yValue: yValue,
+        content: content,
+        backgroundColor: 'rgba(50, 50, 50, 0.85)',
+        position: "start",
+        yPercent: 0,
+        color: 'rgba(240, 240, 240, 1)',
+        font: {
+            size: 18,
+            family: "sans-serif",
+        },
+        padding: 6,
+        borderRadius: 3,
+        z: 1,
+        // More properties as needed
+    };
+    return [lineAnnotation, textAnnotation];
 }
 
 function addAnnotation(date) {
     let annotations = chartInstance.options.plugins.annotation.annotations.slice();
-    let annotation = {
-        type: 'line',
-        xMin: date, // Set the date for the line
-        xMax: date, // Same as xMin for a vertical line
-        borderColor: 'rgba(64, 64, 64, 0.8)',
-        borderWidth: 2,
-        label: {
-            content: 'Event ' + annotations.length,
-            enabled: true,
-            position: "start", // Positions label at the start (bottom for a horizontal line, left for a vertical line)
-            yAdjust: 0, // Adjusts the y position of the label
-            backgroundColor: 'rgba(0, 0, 0, 0.85)', // Light grey, semi-transparent background
-            font: {
-                size: 12, // Example font size
-                style: 'normal', // Normal, italic, or oblique
-                family: "sans-serif", // Font family
-                color: 'rgba(0, 0, 0)' // Dark grey font color for text
-            },
-            padding: 4, // Adds padding inside the label box
-            borderRadius: 4, // Optional: if you want rounded corners
-        }
-    };
+    let [lineAnnotation, textAnnotation] = getAnnotations(date, 100, 'Event ' + annotations.length/2);
 
-    annotations.push(annotation);
+    annotations.push(lineAnnotation);
+    annotations.push(textAnnotation);
     chartInstance.options.plugins.annotation.annotations = annotations;
 
     chartInstance.update();
     updateAnnotationsList();
-    saveAnnotations();
+    updateState();
 }
-document.getElementById('lineChart').addEventListener('click', function(event) {
+
+document.getElementById('lineChart').addEventListener('dblclick', function(event) {
+    event.preventDefault();
     // Calculate the position on the x-axis from the click event
     const xValue = getXValueFromEvent(chartInstance, event);
 
@@ -348,58 +460,80 @@ function updateAnnotationsList() {
     annotationsList.innerHTML = '';
 
     // Add each annotation to the list
-    annotations.forEach((annotation, index) => {
+    for (let idx=0; idx<annotations.length; idx+=2) {
+        let annotation = annotations[idx+1];
         const listItem = document.createElement('div');
         listItem.innerHTML = `
-            <input type="text" value="${annotation.label.content}" onchange="updateAnnotationLabel(${index}, this.value)">
-            <input type="number" value="${yAdjustToPercentage(annotation.label.yAdjust)}" onchange="updateAnnotationYPosition(${index}, this.value)">
-            <button onclick="removeAnnotation(${index})">Delete</button>
+            <input type="text" value="${annotation.content}" onchange="updateAnnotationLabel(${idx+1}, this.value)">
+            <input type="number" value="${annotation.yValue}" onchange="updateAnnotationYPosition(${idx + 1}, this.value)">
+            <button onclick="removeAnnotation(${idx})">Delete</button>
         `;
         annotationsList.appendChild(listItem);
-    });
+    };
 }
 
 function updateAnnotationLabel(index, newLabel) {
     const annotations = chartInstance.options.plugins.annotation.annotations;
-    annotations[index].label.content = newLabel;
+    annotations[index].content = newLabel;
     chartInstance.update();
-    saveAnnotations();
+    updateState();
 }
 
-function yAdjustToPercentage(yAdjust) {
-    let yScale = chartInstance.scales['y'];
-    const pixelPerUnit = yScale.height / 100;
-    let out = Math.round(100 - 100*(yAdjust/yScale.height));
-    return out;
-}
-function percentageToYAdjust(percentage) {
-    let yScale = chartInstance.scales['y'];
-    let out = (100 - percentage)/100 * yScale.height;
-    console.log(out);
-    return out;
-
-}
 function updateAnnotationYPosition(index, newYPercentage) {
     newYPercentage = Number(newYPercentage); // Convert to a number
 
     // Retrieve the annotation
     const annotation = chartInstance.options.plugins.annotation.annotations[index];
 
-    if (annotation.label) {
-        // Adjust relative to the bottom of the chart
-        annotation.label.yAdjust = percentageToYAdjust(newYPercentage);
-    }
+    annotation.yValue = newYPercentage;
 
     // Refresh the chart
     chartInstance.update();
-    saveAnnotations(); // Save the changes
+    updateState(); // Save the changes
 }
 
 function removeAnnotation(index) {
     const annotations = chartInstance.options.plugins.annotation.annotations.slice();
     annotations.splice(index, 1); // Remove the annotation
+    annotations.splice(index, 1); // Remove the annotation
     chartInstance.options.plugins.annotation.annotations = annotations;
     updateAnnotationsList(); // Update the list
     chartInstance.update();
-    saveAnnotations();
+    updateState();
+}
+
+function cacheZoomLevel(chart) {
+    // Get the current axis scale limits
+    const xAxis = chart.scales['x']; // Use your actual x-axis ID
+    const yAxis = chart.scales['y']; // Use your actual y-axis ID
+
+    // Create an object to store the zoom level
+    const zoomLevel = {
+        xMin: xAxis.min,
+        xMax: xAxis.max,
+        yMin: yAxis.min,
+        yMax: yAxis.max
+    };
+
+    // Cache the zoom level in localStorage
+    localStorage.setItem(`zoom_${slug}`, JSON.stringify(zoomLevel));
+}
+
+function applyCachedZoomLevel(chart) {
+    // Retrieve the cached zoom level from localStorage
+    const zoomLevel = JSON.parse(localStorage.getItem(`zoom_${slug}`));
+
+    if (zoomLevel) {
+        const xAxis = chart.options.scales['x']; // Use your actual x-axis ID
+        const yAxis = chart.options.scales['y']; // Use your actual y-axis ID
+
+        // Apply the cached zoom level to the chart axes
+        xAxis.min = zoomLevel.xMin;
+        xAxis.max = zoomLevel.xMax;
+        yAxis.min = zoomLevel.yMin;
+        yAxis.max = zoomLevel.yMax;
+
+        // Update the chart to reflect the changes
+        chart.update();
+    }
 }

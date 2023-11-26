@@ -1,8 +1,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment.min.js"></script>
 <!-- Include Chart.js (make sure it's compatible with the adapter version) -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js@^3"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@^4"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@1.0.2"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1"></script>
 <!-- Include the adapter after Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-moment@^1.0.0"></script>
 <link rel="stylesheet" type="text/css" href="style.css">
@@ -35,7 +35,7 @@
     </div>
     <div id="annotationsList"></div>
     <br>
-    <canvas id="lineChart"></canvas>
+    <canvas id="lineChart" class="unselectable"></canvas>
     <script src="app.js"></script>
 </body>
 </html>

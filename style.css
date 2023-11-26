@@ -27,3 +27,9 @@
 .time-range-selector label:hover {
     background-color: #ddd;
 }
+.unselectable {
+    user-select: none;
+    -moz-user-select: none; /* Firefox */
+    -webkit-user-select: none; /* Safari and Chrome */
+    -ms-user-select: none; /* Internet Explorer/Edge */
+  }
