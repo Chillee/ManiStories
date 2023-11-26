@@ -273,7 +273,7 @@ let slug;
 if ('slug' in urlState) {
     slug = urlState['slug'];
 } else {
-    slug = "will-gpt4-be-a-dense-model";
+    slug = "will-oppenheimer-and-barbie-perform";
 }
 // let slug = "will-the-super-mario-bros-movie-202-c6dfd51afbc9";
 let chartInstance = null;
